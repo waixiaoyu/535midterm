@@ -67,7 +67,8 @@ for i in range(len(Lamda)):
     Lamda[i][i]=1
 
 adjacencyGraph(pos)
-plt.show
+plt.title('adjacency graph')
+plt.show()
 
 Sigma=np.linalg.inv(Lamda)
 
@@ -86,9 +87,11 @@ plt.show()
 
 mean = tuple(1.5 for i in range(20))
 cov = Sigma
-x = np.random.multivariate_normal(mean, cov, 1000)
-sample_covariance=np.cov(np.transpose(x))
-
+sample = np.random.multivariate_normal(mean, cov, 1000)
+#persisting the random array for debugging 
+#np.savetxt("sample1000.txt", sample);
+#sample_backup=np.loadtxt("sample1000.txt")
+sample_covariance=np.cov(np.transpose(sample))
 
 
 covarianceMatrix(sample_covariance)
@@ -104,22 +107,60 @@ plt.show()
 #problem 2.7
 #==============================================================================
 
+#define a function to calculate the construction error used squared distance
+def getReconstructionError(old,new):
+    re_error=np.ones((old.shape[0],1))
+    for i in range(old.shape[0]):
+        for j in range(old.shape[1]):
+            re_error[i]+=pow((old[i][j]-new[i][j]),2)
+    
+    for i in range(len(re_error)):
+        re_error[i]=math.sqrt(re_error[i])
+    return re_error
 
+def drawReconstructionError(err):
+    x=[i for i in range(err.shape[0])]
+    y=[err[i][0] for i in range(err.shape[0])]
+    plt.plot(x,y)
+    
 from sklearn.decomposition import PCA
-sample_pca=x[0:750]
-pca = PCA(0.95,svd_solver ='full').fit(sample_pca)
+
+    
+sample_750=sample[0:750]
+pca = PCA(0.95,svd_solver ='full').fit(sample_750)
+
 components_pca =pca.components_
+covarianceMatrix(components_pca)
+plt.title('principal directions of PCA')
+plt.show()
+
 cov_pca=pca.get_covariance()
 covarianceMatrix(cov_pca)
-plt.title('convariance matrix')
+plt.title('estimated convariance matrix of PCA')
 plt.show()
 
 prec_pca=pca.get_precision()
 covarianceMatrix(prec_pca)
-plt.title('inverse of convariance matrix')
+plt.title('inverse convariance matrix of PCA')
 plt.show()
 
 
+#reconstruct the 750 points
+re_750points_pca=components_pca.dot(sample_750.T)
+re_750points_pca=pca.inverse_transform(re_750points_pca.T)
+re_error_750_pca=getReconstructionError(sample_750,re_750points_pca)
+drawReconstructionError(re_error_750_pca)
+plt.title('reconstruction error of 750 points of PCA')
+plt.show()  
+
+#reconstruct the 250 points
+sample_250=sample[750:1000]
+re_250points_pca=components_pca.dot(sample_250.T)
+re_250points_pca=pca.inverse_transform(re_250points_pca.T)
+re_error_250_pca=getReconstructionError(sample_250,re_250points_pca)
+drawReconstructionError(re_error_250_pca)
+plt.title('reconstruction error of 250 points of PCA')
+plt.show() 
 
 #==============================================================================
 #problem 2.8
@@ -137,12 +178,15 @@ def getPPCA_Sigma():
     temp=np.dot(np.dot(np.dot(S_ppca,W_ppca),inv_M_ppca),W_ppca_hat.T)
     return 1/dimension_t*np.trace(S_ppca-temp)
 
-def get_covariance():
-    return W_ppca.dot(W_ppca.T) + Sigma_ppca * I
+def getPPCACovariance():
+    return W_ppca.dot(W_ppca.T) + Sigma_ppca * np.eye(dimension_x)
 
 
-def get_precision():
-    return np.linalg.inv(get_covariance())
+def getPPCAPrecision():
+    return np.linalg.inv(getPPCACovariance())
+
+def getPPCAInverseTransform(x):
+    return W_ppca.T.dot(x.T) + mu_ppca
     
 dimension_t=20
 dimension_x=18
@@ -153,9 +197,9 @@ W_ppca=np.random.rand(20, 18)
 Sigma_ppca=1
 I=np.eye(dimension_x)
 
-#mu_ppca = np.mean(sample_pca.T, 1)[:, np.newaxis]
-#S_ppca=750**-1 * (sample_pca.T - mu_ppca).dot((sample_pca.T - mu_ppca).T)
-S_ppca=np.cov(sample_pca.T)
+mu_ppca = np.mean(sample_750.T, 1)[:, np.newaxis]
+S_ppca=750**-1 * (sample_750.T - mu_ppca).dot((sample_750.T - mu_ppca).T)
+#S_ppca=np.cov(sample_pca.T)
 
 for i in range(0,iterate_time):
     #at the first of iteration, calculating M and M^-1 using current W and Sigma
@@ -168,10 +212,53 @@ for i in range(0,iterate_time):
     #reset W
     W_ppca=W_ppca_hat
 
+W_ppca=W_ppca.T
+covarianceMatrix(W_ppca)
+plt.title('principal directions of PPCA')
+plt.show()
+
+cov_ppca=getPPCACovariance()
+covarianceMatrix(cov_ppca)
+plt.title('estimated convariance matrix of PPCA')
+plt.show()
+
+prec_ppca=getPPCAPrecision()
+covarianceMatrix(prec_ppca)
+plt.title('inverse  convariance matrix of PPCA')
+plt.show()
 
 
+#reconstruct the 750 points
+re_750points_ppca=W_ppca.dot(sample_750.T)
+re_750points_ppca=getPPCAInverseTransform(re_750points_ppca.T)
+re_error_750_ppca=getReconstructionError(sample_750,re_750points_ppca.T)
+drawReconstructionError(re_error_750_ppca)
+plt.title('reconstruction error of 750 points of PPCA')
+plt.show()  
+
+#reconstruct the 250 points
+sample_250=sample[750:1000]
+re_250points_ppca=W_ppca.dot(sample_250.T)
+re_250points_ppca=getPPCAInverseTransform(re_250points_ppca.T)
+re_error_250_ppca=getReconstructionError(sample_250,re_250points_ppca.T)
+drawReconstructionError(re_error_250_ppca)
+plt.title('reconstruction error of 250 points of PPCA')
+plt.show() 
 
 
+#==============================================================================
+#problem 2.9
+#==============================================================================
+from sklearn.covariance import GraphLasso
+gl=GraphLasso(0.01)
+gl.fit(sample_750)
 
+cov_gl=gl.covariance_
+covarianceMatrix(cov_gl)
+plt.title('convariance matrix of GL')
+plt.show()
 
-
+prec_gl=gl.get_precision()
+covarianceMatrix(prec_gl)
+plt.title('inverse  convariance matrix of GL')
+plt.show()
